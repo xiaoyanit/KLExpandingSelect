@@ -160,7 +160,6 @@
     
     [petal rotationWithDuration: kAnimationRotateDuration
                          angle: rotationAngle
-                       options:UIViewAnimationCurveEaseInOut
                     completion:^(BOOL finished) {
                         if ([self.delegate respondsToSelector:@selector(expandingSelector:didFinishExpandingPetal:)]) {
                             [self.delegate expandingSelector: self
@@ -334,71 +333,73 @@
     return self;
 }
 
-- (void)rotationWithDuration:(NSTimeInterval)duration angle:(CGFloat)angle options:(UIViewAnimationOptions)options completion:(void (^)(BOOL finished))completion
+- (void)rotationWithDuration:(NSTimeInterval)duration
+                       angle:(CGFloat)angle
+                  completion:(void (^)(BOOL finished))completion
 {
     // Repeat a quarter rotation as many times as needed to complete the full rotation
     CGFloat sign = angle > 0 ? 1 : -1;
-    __block NSUInteger numberRepeats = floorf(fabsf(angle) / M_PI_2);
+    NSUInteger numberRepeats = floorf(fabsf(angle) / M_PI_2);
     CGFloat quarterDuration = duration * M_PI_2 / fabs(angle);
     
     CGFloat lastRotation = angle - sign * numberRepeats * M_PI_2;
     CGFloat lastDuration = duration - quarterDuration * numberRepeats;
-    
-    __block UIViewAnimationOptions startOptions = UIViewAnimationOptionBeginFromCurrentState;
-    UIViewAnimationOptions endOptions = UIViewAnimationOptionBeginFromCurrentState;
-    
-    if (options & UIViewAnimationOptionCurveEaseIn || options == UIViewAnimationOptionCurveEaseInOut) {
-        startOptions |= UIViewAnimationOptionCurveEaseIn;
-    } else {
-        startOptions |= UIViewAnimationOptionCurveLinear;
-    }
-    
-    if (options & UIViewAnimationOptionCurveEaseOut || options == UIViewAnimationOptionCurveEaseInOut) {
-        endOptions |= UIViewAnimationOptionCurveEaseOut;
-    } else {
-        endOptions |= UIViewAnimationOptionCurveLinear;
-    }
-    
-    void (^lastRotationBlock)(void) = ^ {
-        [UIView animateWithDuration:lastDuration
-                              delay:0
-                            options:endOptions
-                         animations:^{
-                             self.transform = CGAffineTransformRotate(self.transform, lastRotation);
-                         }
-                         completion:^(BOOL finished) {
-                         }
-         ];
-    };
-    
-    if (numberRepeats) {
-        __block void (^quarterSpinningBlock)(void) = ^{
-            [UIView animateWithDuration:quarterDuration
-                                  delay:0
-                                options:startOptions
-                             animations:^{
-                                 self.transform = CGAffineTransformRotate(self.transform, M_PI_2);
-                                 numberRepeats--;
-                             }
-                             completion:^(BOOL finished) {
-                                 if (numberRepeats > 0) {
-                                     startOptions = UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveLinear;
-                                     quarterSpinningBlock();
-                                 } else {
-                                     lastRotationBlock();
-                                     completion(finished);
-
-                                 }
-                             }
-             ];
-            
-        };
         
-        quarterSpinningBlock();
-    } else {
-        lastRotationBlock();
+    [self lastRotationBlockWithDuration:lastDuration
+                            andRotation:lastRotation];
+    
+    [self quarterSpinningBlock:quarterDuration
+                      duration:lastDuration
+                      rotation:lastRotation
+                 numberRepeats:numberRepeats];
+    
+    return completion(YES);
+}
+
+-(void) quarterSpinningBlock: (CGFloat) quarterDuration
+                duration: (NSInteger) duration
+                rotation: (NSInteger) rotation
+               numberRepeats: (NSInteger) numberRepeats
+{
+    if (numberRepeats) {
+    [UIView animateWithDuration:quarterDuration
+                          delay:0
+                        options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveLinear
+                     animations:^{
+                         self.transform = CGAffineTransformRotate(self.transform, M_PI_2);
+                     }
+                     completion:^(BOOL finished) {
+                         if (numberRepeats > 0) {
+                             [self quarterSpinningBlock: quarterDuration
+                                               duration: duration
+                                               rotation: rotation
+                                          numberRepeats: numberRepeats - 1];
+                         } else {
+                             [self lastRotationBlockWithDuration:duration
+                                                     andRotation:rotation];
+                             return;
+                             
+                         }
+                     }
+     ];
+    }
+    else {
+        [self lastRotationBlockWithDuration: duration
+                                andRotation: rotation];
     }
 }
 
+-(void) lastRotationBlockWithDuration: (CGFloat) duration
+                          andRotation: (CGFloat) rotation {
+    [UIView animateWithDuration: duration
+                          delay: 0
+                        options: UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseOut
+                     animations:^{
+                         self.transform = CGAffineTransformRotate(self.transform, rotation);
+                     }
+                     completion:^(BOOL finished) {
+                     }
+     ];
+}
 
 @end
